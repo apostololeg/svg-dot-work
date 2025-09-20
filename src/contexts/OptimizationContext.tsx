@@ -1,4 +1,14 @@
-import { createContext, useContext, useCallback, ReactNode, useState } from 'react';
+import {
+  ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+
+import worldMapSrc from '@/assets/world-map.png';
 
 interface SvgData {
   original: string;
@@ -13,17 +23,23 @@ interface OptimizationContextType {
   setSvgSizeKB: (size: number) => void;
   setOptimizedSizeKB: (size: number) => void;
   setCurrentSvgs: (svgs: SvgData | null) => void;
-  
+
+  // Mask Selection
+  maskSrc: string;
+  setMaskSrc: (src: string) => void;
+  maskVisible: boolean;
+  setMaskVisible: (visible: boolean) => void;
+
   // Progress State
   isOptimizing: boolean;
   optimizationProgress: number;
   setIsOptimizing: (optimizing: boolean) => void;
   setOptimizationProgress: (progress: number) => void;
-  
+
   // Optimization Trigger
   triggerOptimization: () => void;
   registerOptimizationTrigger: (trigger: () => void) => void;
-  
+
   // Download Function
   downloadSvg: (svgContent: string, filename: string) => void;
 }
@@ -34,26 +50,45 @@ interface OptimizationProviderProps {
   children: ReactNode;
 }
 
-export const OptimizationProvider = ({ children }: OptimizationProviderProps) => {
+export const OptimizationProvider = ({
+  children,
+}: OptimizationProviderProps) => {
   // SVG State
   const [svgSizeKB, setSvgSizeKB] = useState<number>(0);
   const [optimizedSizeKB, setOptimizedSizeKB] = useState<number>(0);
   const [currentSvgs, setCurrentSvgs] = useState<SvgData | null>(null);
-  
+
+  // Mask State
+  const [maskSrc, setMaskSrcState] = useState<string>(worldMapSrc);
+  const [maskVisible, setMaskVisible] = useState<boolean>(false);
+
+  // Load mask from localStorage on mount
+  useEffect(() => {
+    const savedMask = localStorage.getItem('svg-dot-work-mask');
+    if (savedMask) {
+      setMaskSrcState(savedMask);
+    }
+  }, []);
+
+  const setMaskSrc = useCallback((src: string) => {
+    setMaskSrcState(src);
+    localStorage.setItem('svg-dot-work-mask', src);
+  }, []);
+
   // Progress State
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizationProgress, setOptimizationProgress] = useState(0);
-  
+
   // Optimization Trigger
-  let optimizationTrigger: (() => void) | null = null;
+  const optimizationTriggerRef = useRef<(() => void) | null>(null);
 
   const registerOptimizationTrigger = useCallback((trigger: () => void) => {
-    optimizationTrigger = trigger;
+    optimizationTriggerRef.current = trigger;
   }, []);
 
   const triggerOptimization = useCallback(() => {
-    if (optimizationTrigger) {
-      optimizationTrigger();
+    if (optimizationTriggerRef.current) {
+      optimizationTriggerRef.current();
     }
   }, []);
 
@@ -71,28 +106,36 @@ export const OptimizationProvider = ({ children }: OptimizationProviderProps) =>
   }, []);
 
   return (
-    <OptimizationContext.Provider value={{
-      // SVG Data
-      svgSizeKB,
-      optimizedSizeKB,
-      currentSvgs,
-      setSvgSizeKB,
-      setOptimizedSizeKB,
-      setCurrentSvgs,
-      
-      // Progress State
-      isOptimizing,
-      optimizationProgress,
-      setIsOptimizing,
-      setOptimizationProgress,
-      
-      // Optimization Trigger
-      triggerOptimization,
-      registerOptimizationTrigger,
-      
-      // Download Function
-      downloadSvg
-    }}>
+    <OptimizationContext.Provider
+      value={{
+        // SVG Data
+        svgSizeKB,
+        optimizedSizeKB,
+        currentSvgs,
+        setSvgSizeKB,
+        setOptimizedSizeKB,
+        setCurrentSvgs,
+
+        // Mask Selection
+        maskSrc,
+        setMaskSrc,
+        maskVisible,
+        setMaskVisible,
+
+        // Progress State
+        isOptimizing,
+        optimizationProgress,
+        setIsOptimizing,
+        setOptimizationProgress,
+
+        // Optimization Trigger
+        triggerOptimization,
+        registerOptimizationTrigger,
+
+        // Download Function
+        downloadSvg,
+      }}
+    >
       {children}
     </OptimizationContext.Provider>
   );
@@ -101,7 +144,9 @@ export const OptimizationProvider = ({ children }: OptimizationProviderProps) =>
 export const useOptimization = () => {
   const context = useContext(OptimizationContext);
   if (!context) {
-    throw new Error('useOptimization must be used within an OptimizationProvider');
+    throw new Error(
+      'useOptimization must be used within an OptimizationProvider',
+    );
   }
   return context;
 };

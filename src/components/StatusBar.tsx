@@ -1,8 +1,10 @@
+import { useRef } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useOptimization } from '@/contexts/OptimizationContext';
 import { useTheme } from '@/hooks/use-theme';
-import { Download, Moon, Sun, Zap } from 'lucide-react';
+import { Download, Eye, EyeOff, Moon, Sun, Upload, Zap } from 'lucide-react';
 
 export const StatusBar = () => {
   const {
@@ -13,8 +15,12 @@ export const StatusBar = () => {
     currentSvgs,
     triggerOptimization,
     downloadSvg,
+    setMaskSrc,
+    maskVisible,
+    setMaskVisible,
   } = useOptimization();
   const { theme, setTheme } = useTheme();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDownload = () => {
     if (currentSvgs?.original) {
@@ -29,6 +35,24 @@ export const StatusBar = () => {
   const handleDownloadOptimized = () => {
     if (currentSvgs?.optimized) {
       downloadSvg(currentSvgs.optimized, 'world-dots-optimized.svg');
+    }
+  };
+
+  const handleMaskFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const dataUrl = e.target?.result;
+        if (typeof dataUrl === 'string') {
+          setMaskSrc(dataUrl);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -69,6 +93,37 @@ export const StatusBar = () => {
             <Sun className="h-4 w-4" />
           )}
         </Button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleMaskFileSelect}
+            className="flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Select Mask
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMaskVisible(!maskVisible)}
+            className="h-9 w-9 p-0"
+          >
+            {maskVisible ? (
+              <Eye className="h-4 w-4" />
+            ) : (
+              <EyeOff className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
 
         <div className="flex-1" />
 
