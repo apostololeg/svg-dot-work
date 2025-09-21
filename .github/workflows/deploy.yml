@@ -36,12 +36,15 @@ jobs:
 
       - name: Deploy to VPS
         run: |
-          # Create backup of current deployment
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-            if [ -d ${{ secrets.VPS_DEPLOY_PATH }} ]; then
-              sudo cp -r ${{ secrets.VPS_DEPLOY_PATH }} ${{ secrets.VPS_DEPLOY_PATH }}.backup.$(date +%Y%m%d_%H%M%S)
-            fi
-          "
+        # Create backup of current deployment
+        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+          if [ -d ${{ secrets.VPS_DEPLOY_PATH }} ] && [ \$(ls -A ${{ secrets.VPS_DEPLOY_PATH }} 2>/dev/null | wc -l) -gt 0 ]; then
+            BACKUP_DIR=${{ secrets.VPS_DEPLOY_PATH }}.backup.\$(date +%Y%m%d_%H%M%S)
+            sudo cp -r ${{ secrets.VPS_DEPLOY_PATH }} \"\$BACKUP_DIR\"
+            sudo chown -R ci:ci \"\$BACKUP_DIR\"
+            echo \"Created backup: \$BACKUP_DIR\"
+          fi
+        "
 
           # Clear deployment directory
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
@@ -58,33 +61,44 @@ jobs:
             sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type f -exec chmod 644 {} \;
           "
 
-          # Reload nginx
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-            sudo systemctl reload nginx
-          "
+        # Reload nginx
+        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+          sudo systemctl reload nginx
+        "
+        
+        # Cleanup old backups (keep only last 3)
+        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+          cd /var/www
+          ls -td ${{ secrets.VPS_DEPLOY_PATH }}.backup.* 2>/dev/null | tail -n +4 | xargs -r rm -rf
+          echo 'Cleaned up old backups'
+        "
 
       - name: Health check
         run: |
           # Wait a moment for the deployment to settle
           sleep 10
 
-          # Check if the site is responding
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.VPS_HOST }})
+          # Check if the site is responding (follow redirects and accept 200, 301, 302)
+          HTTP_STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" http://${{ secrets.VPS_HOST }})
 
-          if [ $HTTP_STATUS -eq 200 ]; then
-            echo "✅ Health check passed! Site is responding with HTTP 200"
+          if [ $HTTP_STATUS -eq 200 ] || [ $HTTP_STATUS -eq 301 ] || [ $HTTP_STATUS -eq 302 ]; then
+            echo "✅ Health check passed! Site is responding with HTTP $HTTP_STATUS"
           else
             echo "❌ Health check failed! Site returned HTTP $HTTP_STATUS"
             echo "Rolling back deployment..."
 
             # Rollback logic
             ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-              BACKUP_DIR=\$(ls -t ${{ secrets.VPS_DEPLOY_PATH }}.backup.* 2>/dev/null | head -n1)
-              if [ ! -z \"\$BACKUP_DIR\" ]; then
+              BACKUP_DIR=\$(ls -td ${{ secrets.VPS_DEPLOY_PATH }}.backup.* 2>/dev/null | head -n1)
+              if [ ! -z \"\$BACKUP_DIR\" ] && [ -d \"\$BACKUP_DIR\" ]; then
+                echo \"Found backup directory: \$BACKUP_DIR\"
                 sudo rm -rf ${{ secrets.VPS_DEPLOY_PATH }}/*
-                sudo cp -r \$BACKUP_DIR/* ${{ secrets.VPS_DEPLOY_PATH }}/
+                sudo cp -r \"\$BACKUP_DIR\"/* ${{ secrets.VPS_DEPLOY_PATH }}/
+                sudo chown -R www-data:www-data ${{ secrets.VPS_DEPLOY_PATH }}
                 sudo systemctl reload nginx
-                echo 'Rollback completed'
+                echo 'Rollback completed successfully'
+              else
+                echo 'No backup directory found, cannot rollback'
               fi
             "
             exit 1
