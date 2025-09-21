@@ -1,0 +1,91 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main, master] # Adjust branch name as needed
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to VPS
+        run: |
+          # Create backup of current deployment
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            if [ -d ${{ secrets.VPS_DEPLOY_PATH }} ]; then
+              sudo cp -r ${{ secrets.VPS_DEPLOY_PATH }} ${{ secrets.VPS_DEPLOY_PATH }}.backup.$(date +%Y%m%d_%H%M%S)
+            fi
+          "
+
+          # Clear deployment directory
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            sudo rm -rf ${{ secrets.VPS_DEPLOY_PATH }}/*
+          "
+
+          # Upload new build
+          scp -r dist/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_DEPLOY_PATH }}/
+
+          # Set proper permissions
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            sudo chown -R www-data:www-data ${{ secrets.VPS_DEPLOY_PATH }}
+            sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type d -exec chmod 755 {} \;
+            sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type f -exec chmod 644 {} \;
+          "
+
+          # Reload nginx
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            sudo systemctl reload nginx
+          "
+
+      - name: Health check
+        run: |
+          # Wait a moment for the deployment to settle
+          sleep 10
+
+          # Check if the site is responding
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.VPS_HOST }})
+
+          if [ $HTTP_STATUS -eq 200 ]; then
+            echo "✅ Health check passed! Site is responding with HTTP 200"
+          else
+            echo "❌ Health check failed! Site returned HTTP $HTTP_STATUS"
+            echo "Rolling back deployment..."
+
+            # Rollback logic
+            ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+              BACKUP_DIR=\$(ls -t ${{ secrets.VPS_DEPLOY_PATH }}.backup.* 2>/dev/null | head -n1)
+              if [ ! -z \"\$BACKUP_DIR\" ]; then
+                sudo rm -rf ${{ secrets.VPS_DEPLOY_PATH }}/*
+                sudo cp -r \$BACKUP_DIR/* ${{ secrets.VPS_DEPLOY_PATH }}/
+                sudo systemctl reload nginx
+                echo 'Rollback completed'
+              fi
+            "
+            exit 1
+          fi
