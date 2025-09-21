@@ -79,8 +79,8 @@ export const StatusBar = () => {
   const isOptimized = optimizedSizeKB > 0 && !isOptimizing;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-surface/30 backdrop-blur-sm border-t border-glass-border z-10">
-      <div className="flex items-center justify-between px-6 py-3">
+    <div className="fixed bottom-0 left-0 right-0 bg-surface/80 backdrop-blur-sm border-t border-glass-border z-10">
+      <div className="flex flex-wrap gap-2 items-center justify-between px-6 py-3">
         <Button
           variant="ghost"
           size="lg"
@@ -128,7 +128,10 @@ export const StatusBar = () => {
         <div className="flex-1" />
 
         {/* Progress Bar */}
-        <div className="absolute bottom-[70px] right-8 flex items-center gap-3 min-w-0 flex-1 text-sm text-green-400">
+        <div
+          className="absolute bottom-[70px] right-6 flex items-center gap-3 min-w-0 flex-1 text-sm text-green-400"
+          style={{ bottom: 'calc(100% + 10px' }}
+        >
           {isOptimizing && (
             <>
               <span className="whitespace-nowrap">Optimizing...</span>
