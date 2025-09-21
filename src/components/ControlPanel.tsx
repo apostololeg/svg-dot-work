@@ -30,7 +30,7 @@ export const ControlPanel = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     if (!panelRef.current) return;
 
     // Prevent dragging when clicking on interactive elements
@@ -50,8 +50,8 @@ export const ControlPanel = ({
     setIsDragging(true);
   };
 
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
+  const handlePointerMove = useCallback(
+    (e: PointerEvent) => {
       if (!isDragging) return;
 
       const newX = e.clientX - dragOffset.x;
@@ -69,22 +69,22 @@ export const ControlPanel = ({
     [isDragging, dragOffset.x, dragOffset.y, onPositionChange],
   );
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     setIsDragging(false);
   }, []);
 
   // Add global event listeners for dragging
   useEffect(() => {
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('pointermove', handlePointerMove);
+      document.addEventListener('pointerup', handlePointerUp);
 
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('pointermove', handlePointerMove);
+        document.removeEventListener('pointerup', handlePointerUp);
       };
     }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
+  }, [isDragging, handlePointerMove, handlePointerUp]);
   const presetColors = [
     '#ffffff', // white
     '#60a5fa', // blue
@@ -97,8 +97,8 @@ export const ControlPanel = ({
   return (
     <div
       ref={panelRef}
-      onMouseDown={handleMouseDown}
-      className={`bg-surface/50 backdrop-blur-sm border border-glass-border rounded-xl space-y-6 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      onPointerDown={handlePointerDown}
+      className={`bg-surface/50 backdrop-blur-sm border border-glass-border rounded-xl space-y-6 select-none touch-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
     >
       <div className="p-6">
         <div className="space-y-4">
