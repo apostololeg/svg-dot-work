@@ -6,7 +6,7 @@ on:
   workflow_dispatch: # Allows manual trigger
 
 jobs:
-  build-and-deploy:
+  'build-and-deploy':
     runs-on: ubuntu-latest
 
     steps:
@@ -25,75 +25,75 @@ jobs:
       - name: Build project
         run: npm run build
 
-    - name: Setup SSH
-      run: |
-        # Create SSH directory
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        
-        # Add SSH key
-        echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
-        
-        # Add VPS to known hosts with retries
-        for i in {1..3}; do
-          if ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null; then
-            echo "Successfully added ${{ secrets.VPS_HOST }} to known_hosts"
-            break
-          else
-            echo "Attempt $i failed, retrying..."
-            sleep 2
+      - name: Setup SSH
+        run: |
+          # Create SSH directory
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Add SSH key
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          # Add VPS to known hosts with retries
+          for i in {1..3}; do
+            if ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null; then
+              echo "Successfully added ${{ secrets.VPS_HOST }} to known_hosts"
+              break
+            else
+              echo "Attempt $i failed, retrying..."
+              sleep 2
+            fi
+          done
+
+          # Verify known_hosts was populated
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "Failed to add host keys, using StrictHostKeyChecking=no"
+            echo "Host ${{ secrets.VPS_HOST }}" >> ~/.ssh/config
+            echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+            echo "  UserKnownHostsFile /dev/null" >> ~/.ssh/config
           fi
-        done
-        
-        # Verify known_hosts was populated
-        if [ ! -s ~/.ssh/known_hosts ]; then
-          echo "Failed to add host keys, using StrictHostKeyChecking=no"
-          echo "Host ${{ secrets.VPS_HOST }}" >> ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          echo "  UserKnownHostsFile /dev/null" >> ~/.ssh/config
-        fi
-        
-        chmod 644 ~/.ssh/known_hosts ~/.ssh/config 2>/dev/null || true
+
+          chmod 644 ~/.ssh/known_hosts ~/.ssh/config 2>/dev/null || true
 
       - name: Deploy to VPS
         run: |
-        # Create backup of current deployment
-        ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-          if [ -d ${{ secrets.VPS_DEPLOY_PATH }} ] && [ \$(ls -A ${{ secrets.VPS_DEPLOY_PATH }} 2>/dev/null | wc -l) -gt 0 ]; then
-            BACKUP_DIR=${{ secrets.VPS_DEPLOY_PATH }}.backup.\$(date +%Y%m%d_%H%M%S)
-            sudo cp -r ${{ secrets.VPS_DEPLOY_PATH }} \"\$BACKUP_DIR\"
-            sudo chown -R ci:ci \"\$BACKUP_DIR\"
-            echo \"Created backup: \$BACKUP_DIR\"
-          fi
-        "
-
-        # Clear deployment directory
-        ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-            sudo rm -rf ${{ secrets.VPS_DEPLOY_PATH }}/*
+          # Create backup of current deployment
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            if [ -d ${{ secrets.VPS_DEPLOY_PATH }} ] && [ \$(ls -A ${{ secrets.VPS_DEPLOY_PATH }} 2>/dev/null | wc -l) -gt 0 ]; then
+              BACKUP_DIR=${{ secrets.VPS_DEPLOY_PATH }}.backup.\$(date +%Y%m%d_%H%M%S)
+              sudo cp -r ${{ secrets.VPS_DEPLOY_PATH }} \"\$BACKUP_DIR\"
+              sudo chown -R ci:ci \"\$BACKUP_DIR\"
+              echo \"Created backup: \$BACKUP_DIR\"
+            fi
           "
 
-        # Upload new build
-        scp -i ~/.ssh/id_ed25519 -r dist/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_DEPLOY_PATH }}/
+          # Clear deployment directory
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+              sudo rm -rf ${{ secrets.VPS_DEPLOY_PATH }}/*
+            "
 
-        # Set proper permissions
-        ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-            sudo chown -R www-data:www-data ${{ secrets.VPS_DEPLOY_PATH }}
-            sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type d -exec chmod 755 {} \;
-            sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type f -exec chmod 644 {} \;
+          # Upload new build
+          scp -i ~/.ssh/id_ed25519 -r dist/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_DEPLOY_PATH }}/
+
+          # Set proper permissions
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+              sudo chown -R www-data:www-data ${{ secrets.VPS_DEPLOY_PATH }}
+              sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type d -exec chmod 755 {} \;
+              sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type f -exec chmod 644 {} \;
+            "
+
+          # Reload nginx
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            sudo systemctl reload nginx
           "
 
-        # Reload nginx
-        ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-          sudo systemctl reload nginx
-        "
-        
-        # Cleanup old backups (keep only last 3)
-        ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-          cd /var/www
-          ls -td ${{ secrets.VPS_DEPLOY_PATH }}.backup.* 2>/dev/null | tail -n +4 | xargs -r rm -rf
-          echo 'Cleaned up old backups'
-        "
+          # Cleanup old backups (keep only last 3)
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            cd /var/www
+            ls -td ${{ secrets.VPS_DEPLOY_PATH }}.backup.* 2>/dev/null | tail -n +4 | xargs -r rm -rf
+            echo 'Cleaned up old backups'
+          "
 
       - name: Health check
         run: |
