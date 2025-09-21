@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useOptimization } from '@/contexts/OptimizationContext';
+import { reportEvent } from '@/lib/analytics';
 import { optimize } from 'svgo';
 
 interface MapCanvasProps {
@@ -42,6 +43,7 @@ export const MapCanvas = ({ density, dotSize, color }: MapCanvasProps) => {
         const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
         setMapImageData(imageData);
         setMapImage(img);
+        reportEvent('mask_image_loaded');
       }
     };
     img.src = maskSrc;
@@ -153,7 +155,10 @@ ${dots.map(dot => `  <circle cx="${dot.x}" cy="${dot.y}" r="${dotSize / 2}" fill
       setOptimizationProgress(100);
 
       // End optimization
-      setTimeout(() => setIsOptimizing(false), 200); // Small delay to show 100%
+      setTimeout(() => {
+        setIsOptimizing(false);
+        reportEvent('svg_optimized');
+      }, 200); // Small delay to show 100%
 
       return optimizedSvg;
     },

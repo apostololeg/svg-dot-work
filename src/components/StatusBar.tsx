@@ -4,7 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useOptimization } from '@/contexts/OptimizationContext';
 import { useTheme } from '@/hooks/use-theme';
+import { createDebouncedReported, reportEvent } from '@/lib/analytics';
 import { Download, Eye, EyeOff, Moon, Sun, Upload, Zap } from 'lucide-react';
+
+const reportToggleMaskVisibility = createDebouncedReported(
+  'toggle_mask_visibility',
+);
 
 export const StatusBar = () => {
   const {
@@ -24,27 +29,32 @@ export const StatusBar = () => {
 
   const handleDownload = () => {
     if (currentSvgs?.original) {
+      reportEvent('download_original_svg');
       downloadSvg(currentSvgs.original, 'world-dots.svg');
     }
   };
 
   const handleOptimize = () => {
+    reportEvent('optimize_svg');
     triggerOptimization();
   };
 
   const handleDownloadOptimized = () => {
     if (currentSvgs?.optimized) {
+      reportEvent('download_optimized_svg');
       downloadSvg(currentSvgs.optimized, 'world-dots-optimized.svg');
     }
   };
 
   const handleMaskFileSelect = () => {
+    reportEvent('select_mask_file');
     fileInputRef.current?.click();
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type.startsWith('image/')) {
+      reportEvent('loaded_mask_file');
       const reader = new FileReader();
       reader.onload = e => {
         const dataUrl = e.target?.result;
@@ -84,7 +94,10 @@ export const StatusBar = () => {
         <Button
           variant="ghost"
           size="lg"
-          onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+          onClick={() => {
+            reportEvent('toggle_theme');
+            setTheme(theme === 'light' ? 'dark' : 'light');
+          }}
           className="h-8 w-8 p-0"
         >
           {theme === 'light' ? (
@@ -114,7 +127,10 @@ export const StatusBar = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setMaskVisible(!maskVisible)}
+            onClick={() => {
+              reportToggleMaskVisibility();
+              setMaskVisible(!maskVisible);
+            }}
             className="h-9 w-9 p-0"
           >
             {maskVisible ? (

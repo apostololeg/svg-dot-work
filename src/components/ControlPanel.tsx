@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { useTheme } from '@/hooks/use-theme';
-import { Moon, Sun } from 'lucide-react';
+import { createDebouncedReported, reportEvent } from '@/lib/analytics';
+
+const reportChangeDensity = createDebouncedReported('change_density');
+const reportChangeDotSize = createDebouncedReported('change_dot_size');
+const reportChangeColor = createDebouncedReported('change_color');
 
 interface ControlPanelProps {
   density: number;
@@ -71,6 +73,7 @@ export const ControlPanel = ({
 
   const handlePointerUp = useCallback(() => {
     setIsDragging(false);
+    reportEvent('drag_panel');
   }, []);
 
   // Add global event listeners for dragging
@@ -115,7 +118,10 @@ export const ControlPanel = ({
               max={15}
               step={1}
               value={[density]}
-              onValueChange={value => setDensity(value[0])}
+              onValueChange={value => {
+                setDensity(value[0]);
+                reportChangeDensity();
+              }}
               className="w-full"
             />
           </div>
@@ -133,7 +139,10 @@ export const ControlPanel = ({
               max={8}
               step={0.5}
               value={[dotSize]}
-              onValueChange={value => setDotSize(value[0])}
+              onValueChange={value => {
+                setDotSize(value[0]);
+                reportChangeDotSize();
+              }}
               className="w-full"
             />
           </div>
@@ -146,7 +155,10 @@ export const ControlPanel = ({
               {presetColors.map(presetColor => (
                 <button
                   key={presetColor}
-                  onClick={() => setColor(presetColor)}
+                  onClick={() => {
+                    setColor(presetColor);
+                    reportChangeColor();
+                  }}
                   className={`w-8 h-8 rounded border-2 transition-all ${
                     color === presetColor
                       ? 'border-primary scale-110'
@@ -159,7 +171,10 @@ export const ControlPanel = ({
             <input
               type="color"
               value={color}
-              onChange={e => setColor(e.target.value)}
+              onChange={e => {
+                setColor(e.target.value);
+                reportChangeColor();
+              }}
               className="mt-2 w-full h-8 rounded border border-glass-border bg-transparent cursor-pointer"
             />
           </div>
