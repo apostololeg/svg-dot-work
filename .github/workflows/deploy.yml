@@ -70,18 +70,21 @@ jobs:
 
           # Clear deployment directory
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-              sudo rm -rf ${{ secrets.VPS_DEPLOY_PATH }}/*
-            "
+            sudo rm -rf ${{ secrets.VPS_DEPLOY_PATH }}/*
+          "
 
-          # Upload new build
-          scp -i ~/.ssh/id_ed25519 -r dist/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_DEPLOY_PATH }}/
+          # Upload new build to temporary directory
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ~/temp_deploy"
+          scp -i ~/.ssh/id_ed25519 -r dist/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/temp_deploy/
 
-          # Set proper permissions
+          # Move files to deployment directory and set proper permissions
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-              sudo chown -R www-data:www-data ${{ secrets.VPS_DEPLOY_PATH }}
-              sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type d -exec chmod 755 {} \;
-              sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type f -exec chmod 644 {} \;
-            "
+            sudo cp -r ~/temp_deploy/* ${{ secrets.VPS_DEPLOY_PATH }}/
+            sudo chown -R www-data:www-data ${{ secrets.VPS_DEPLOY_PATH }}
+            sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type d -exec chmod 755 {} \;
+            sudo find ${{ secrets.VPS_DEPLOY_PATH }} -type f -exec chmod 644 {} \;
+            rm -rf ~/temp_deploy
+          "
 
           # Reload nginx
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
